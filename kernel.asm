@@ -1,6 +1,6 @@
 [org 0x1000]
 
-mov ax, 0x03        ; Standard Text Mode
+mov ax, 0x03        ; Text Mode
 int 0x10
 
 mov si, welcome_msg
@@ -12,7 +12,7 @@ install_loop:
     call clear_buffer
     call get_input
 
-    ; --- Command Logic ---
+    ; --- Command Routing ---
     mov si, input_buffer
     mov di, cmd_lsblk
     call strcmp
@@ -29,9 +29,9 @@ install_loop:
     jc .do_pacman
 
     mov si, input_buffer
-    mov di, cmd_useradd
+    mov di, cmd_sysinfo
     call strcmp
-    jc .do_useradd
+    jc .do_sysinfo
 
     mov si, input_buffer
     mov di, cmd_neofetch
@@ -79,22 +79,23 @@ install_loop:
     call print_string
     jmp install_loop
 
-.do_useradd:
-    cmp byte [is_installed], 0
-    je .err_no_sys
-    mov si, msg_user_run
+.do_sysinfo:
+    mov si, msg_cpu_probe
     call print_string
-    mov si, login_prompt
+    
+    ; --- CPUID Logic ---
+    xor eax, eax        ; EAX = 0: Get Vendor ID
+    cpuid               ; Returns ID in EBX, EDX, ECX
+    
+    mov [cpu_vendor], ebx
+    mov [cpu_vendor+4], edx
+    mov [cpu_vendor+8], ecx
+    
+    mov si, msg_vendor
     call print_string
-    call get_input
-    mov si, pass_prompt
+    mov si, cpu_vendor
     call print_string
-    call get_pass
-    mov si, msg_success
-    call print_string
-    jmp install_loop
-.err_no_sys:
-    mov si, err_pacman
+    mov si, newline
     call print_string
     jmp install_loop
 
@@ -144,24 +145,6 @@ get_input:
     call print_string
     ret
 
-get_pass:
-    mov di, input_buffer
-.lp:
-    mov ah, 0x00
-    int 0x16
-    cmp al, 0x0D
-    je .dn
-    mov ah, 0x0e
-    mov al, '*'
-    int 0x10
-    stosb
-    jmp .lp
-.dn: mov al, 0
-    stosb
-    mov si, newline
-    call print_string
-    ret
-
 backspace_ui:
     mov ah, 0x0e
     mov al, 0x08
@@ -204,7 +187,7 @@ simulate_progress:
     mov al, '#'
     int 0x10
     push cx
-    mov cx, 0x1FFF
+    mov cx, 0x0FFF
 .d: loop .d
     pop cx
     loop .lp
@@ -215,15 +198,20 @@ simulate_progress:
 ; --- DATA ---
 is_partitioned db 0
 is_installed   db 0
-welcome_msg    db '--- Arch-PingOS Maintenance Console ---', 13, 10, 0
+welcome_msg    db '--- Arch-PingOS Deployment Shell ---', 13, 10, 0
 prompt         db '[root@live-iso]# ', 0
 newline        db 13, 10, 0
 cmd_lsblk      db 'lsblk', 0
 cmd_fdisk      db 'fdisk', 0
 cmd_pacman     db 'pacman', 0
-cmd_useradd    db 'useradd', 0
+cmd_sysinfo    db 'sysinfo', 0
 cmd_neofetch   db 'neofetch', 0
 cmd_reboot     db 'reboot', 0
+
+msg_cpu_probe  db 'Polling CPUID registers...', 13, 10, 0
+msg_vendor     db 'CPU Vendor: ', 0
+cpu_vendor     times 13 db 0 ; Space for 12 chars + null terminator
+
 neo_art        db '       /\         root@pingos', 13, 10
                db '      /  \        -----------', 13, 10
                db '     /\   \       OS: Arch-PingOS x86', 13, 10
@@ -231,16 +219,13 @@ neo_art        db '       /\         root@pingos', 13, 10
                db '   /   /\   \     Kernel: 1.0.0-ping-custom', 13, 10
                db '  /   /  \   \    Uptime: 16-bit Real Mode', 13, 10
                db ' /___/    \___\   Shell: Ping-Bash', 13, 10, 0
+
 table_header   db 13, 10, 'NAME      MAJ:MIN   SIZE   TYPE   DESCRIPTION', 13, 10, '---------------------------------------------------', 13, 10, 0
 sda_row        db 'sda         8:0     10M    disk   (Physical Drive)', 13, 10, 0
 sda1_row       db '`-sda1      8:1      9M    part   (System Partition)', 13, 10, 0
-msg_fdisk_run  db 'Partitioning drive... New partition sda1 created.', 13, 10, 0
-msg_pac_run    db 'Downloading base linux xfce4...', 13, 10, 0
-msg_user_run   db 'Setting up administrative account...', 13, 10, 0
-login_prompt   db 'New Username: ', 0
-pass_prompt    db 'New Password: ', 0
-msg_success    db 13, 10, 'INSTALLATION COMPLETE. Type "reboot".', 13, 10, 0
-err_fdisk      db 'Error: Run "fdisk" first!', 13, 10, 0
-err_pacman     db 'Error: Run "pacman" first!', 13, 10, 0
-err_cmd        db 'Unknown command.', 13, 10, 0
+msg_fdisk_run  db 'fdisk: Partition sda1 successfully mapped.', 13, 10, 0
+msg_pac_run    db 'pacman: Initializing base system download...', 13, 10, 0
+msg_success    db 13, 10, 'SUCCESS. The system is ready for deployment.', 13, 10, 0
+err_cmd        db 'Command not found.', 13, 10, 0
+err_fdisk      db 'Error: Run fdisk first!', 13, 10, 0
 input_buffer   times 64 db 0
