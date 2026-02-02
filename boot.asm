@@ -1,28 +1,38 @@
 [org 0x7c00]
 KERNEL_OFFSET equ 0x1000
 
-mov [BOOT_DRIVE], dl        ; Save physical drive index
+jmp short start
+nop
+times 33 db 0       ; Padding for the BIOS Parameter Block (Standard for USB/HDD)
 
-mov bp, 0x9000
-mov sp, bp
+start:
+    cli             
+    xor ax, ax
+    mov ds, ax
+    mov es, ax
+    mov ss, ax
+    mov sp, 0x7c00  ; Move stack below the bootloader for safety
+    sti             
 
-disk_reset:
+    mov [BOOT_DRIVE], dl
+
+    ; Reset disk system (Essential for hardware)
     mov ah, 0
     mov dl, [BOOT_DRIVE]
     int 0x13
-    jc disk_reset
 
-mov ah, 0x02
-mov al, 50                  ; Load enough sectors for our expanding kernel
-mov ch, 0
-mov dh, 0
-mov cl, 2
-mov dl, [BOOT_DRIVE]
-mov bx, KERNEL_OFFSET
-int 0x13
+    ; Load Kernel
+    mov ah, 0x02
+    mov al, 50      
+    mov ch, 0
+    mov dh, 0
+    mov cl, 2
+    mov dl, [BOOT_DRIVE]
+    mov bx, KERNEL_OFFSET
+    int 0x13
 
-jc disk_error
-jmp KERNEL_OFFSET
+    jc disk_error
+    jmp KERNEL_OFFSET
 
 disk_error:
     mov ah, 0x0e
