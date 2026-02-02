@@ -1,11 +1,22 @@
-[org 0x7c00]      ; BIOS loads bootloader at this memory address
+[org 0x7c00]
 
-; Print 'G' to the screen
-mov ah, 0x0e      ; BIOS scrolling teletype function
-mov al, 'G'       ; Character to print
-int 0x10          ; Call BIOS video interrupt
+mov si, WELCOME_MSG    ; Point SI register to our string label
+call print_string      ; Call our new print function
 
-jmp $             ; Infinite loop (prevents CPU from executing trash memory)
+jmp $                  
 
-times 510-($-$$) db 0  ; Fill remaining space with zeros up to byte 510
-dw 0xaa55              ; Magic number (bytes 511-512) to make it bootable
+print_string:
+    mov ah, 0x0e       ; BIOS teletype mode
+.loop:
+    lodsb              
+    cmp al, 0          
+    je .done           
+    int 0x10           
+    jmp .loop          
+.done:
+    ret
+
+WELCOME_MSG: db 'Welcome to PingOS!', 0
+
+times 510-($-$$) db 0
+dw 0xaa55
