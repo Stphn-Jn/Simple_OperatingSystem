@@ -1,6 +1,6 @@
 [bits 32]
-[extern _main] ; MinGW GCC adds this underscore
+[extern _main]   ; Must have the underscore
 
 _start:
-    call _main ; Call the C function
+    call _main   ; Must have the underscore
     jmp $
